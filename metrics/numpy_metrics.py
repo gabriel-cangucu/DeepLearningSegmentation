@@ -2,17 +2,18 @@ import torch
 import numpy as np
 from sklearn.metrics import confusion_matrix
 
+from utils.distributed_utils import all_reduce_mean
+
 np.seterr(divide='ignore', invalid='ignore')
 
 
 class RunningMetrics(object):
 
-    def __init__(self, num_classes: int, ignore_index: int, device: torch.device) -> None:
+    def __init__(self, num_classes: int, ignore_index: int) -> None:
         self.num_classes = num_classes
         self.ignore_index = ignore_index
-        self.device = device
 
-        self.conf_matrix = torch.zeros(num_classes, num_classes).to(device)
+        self.conf_matrix = np.zeros((num_classes, num_classes))
 
 
     def update(self, logits: torch.tensor, labels: torch.tensor) -> None:
@@ -28,43 +29,53 @@ class RunningMetrics(object):
             preds = preds[mask]
             labels = labels[mask]
 
-        self.conf_matrix += torch.tensor(
-            confusion_matrix(y_pred=preds, y_true=labels, labels=[i for i in range(self.num_classes)])
-        ).to(self.device)
+        self.conf_matrix += confusion_matrix(
+            y_pred=preds, y_true=labels, labels=[i for i in range(self.num_classes)]
+        )
 
 
     def get_scores(self) -> dict[str, float]:
-        torch.distributed.all_reduce(self.conf_matrix, op=torch.distributed.ReduceOp.AVG)
+        metrics = [
+            'pixel_acc',
+            'mean_class_acc',
+            'mean_precision',
+            'mean_recall',
+            'mean_f1',
+            'mean_iou'
+        ]
+        metrics_tensor = torch.zeros(len(metrics))
 
-        conf_matrix = self.conf_matrix.detach().cpu()
-        diag = np.diagonal(conf_matrix)
+        diag = np.diagonal(self.conf_matrix)
 
-        row_sum = conf_matrix.sum(axis=1)
-        col_sum = conf_matrix.sum(axis=0)
+        row_sum = self.conf_matrix.sum(axis=1)
+        col_sum = self.conf_matrix.sum(axis=0)
 
-        pixel_acc = np.nan_to_num(diag.sum() / conf_matrix.sum()).item()
-        class_acc = np.nan_to_num(diag / conf_matrix.sum(axis=1))
-        mean_class_acc = np.mean(class_acc).item()
+        # Pixel accuracy
+        metrics_tensor[0] = np.nan_to_num(diag.sum() / self.conf_matrix.sum()).item()
 
+        # Mean class accuracy
+        class_acc = np.nan_to_num(diag / self.conf_matrix.sum(axis=1))
+        metrics_tensor[1] = np.mean(class_acc).item()
+
+        # Mean precision
         precision = np.nan_to_num(diag / col_sum)
-        mean_precision = np.mean(precision).item()
+        metrics_tensor[2] = np.mean(precision).item()
+
+        # Mean recall
         recall = np.nan_to_num(diag / row_sum)
-        mean_recall = np.mean(recall).item()
+        metrics_tensor[3] = np.mean(recall).item()
 
+        # Mean F1
         f1 = np.nan_to_num((2*precision*recall) / (precision + recall))
-        mean_f1 = np.mean(f1).item()
+        metrics_tensor[4] = np.mean(f1).item()
 
+        # Mean IoU
         iou = np.nan_to_num(diag / (row_sum + col_sum - diag))
-        mean_iou = np.mean(iou).item()
+        metrics_tensor[5] = np.mean(iou).item()
 
-        return {
-            'pixel_acc': pixel_acc,
-            'mean_class_acc': mean_class_acc,
-            'mean_precision': mean_precision,
-            'mean_recall': mean_recall,
-            'mean_f1': mean_f1,
-            'mean_iou': mean_iou
-        }
+        metrics_tensor = all_reduce_mean(metrics_tensor)
+
+        return {metric: metrics_tensor[i].item() for i, metric in enumerate(metrics)}
 
 
     def reset(self) -> None:

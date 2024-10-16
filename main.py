@@ -12,13 +12,14 @@ from utils.config_files_utils import read_yaml
 from utils.torch_utils import load_from_checkpoint
 from utils.lr_scheduler import get_scheduler
 from utils.summaries import write_summaries
+from utils.distributed_utils import all_reduce_mean
 from utils.device_utils import init_distributed_process, get_current_device, is_main_process
 
 
 def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataLoader,
                        config: dict[str, Any]) -> None:
     def train_step(net: torch.nn.Module, sample: dict[str, torch.tensor],
-                   running_metrics: RunningMetrics, loss_fn: torch.nn, optimizer: torch.optim,
+                   running_train_metrics: RunningMetrics, loss_fn: torch.nn, optimizer: torch.optim,
                    device: torch.device) -> tuple[float, dict[str, float]]:
         net.train()
 
@@ -31,17 +32,15 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
             outputs = net(inputs)
             loss_tensor = loss_fn(outputs, targets)
         
-        torch.distributed.all_reduce(loss_tensor, op=torch.distributed.ReduceOp.AVG)
-        loss = loss_tensor.detach().cpu().numpy().item()
-        
         scaler.scale(loss_tensor).backward()
         scaler.step(optimizer)
         scaler.update()
 
         optimizer.zero_grad(set_to_none=True)
+        loss = all_reduce_mean(loss_tensor).item()
 
-        running_metrics.update(outputs, targets)
-        train_metrics = running_metrics.get_scores()
+        running_train_metrics.update(outputs, targets)
+        train_metrics = running_train_metrics.get_scores()
 
         return loss, train_metrics
 
@@ -70,9 +69,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
             running_val_metrics.update(outputs, targets)
         
         all_losses_tensor = all_losses_tensor.mean()
-
-        torch.distributed.all_reduce(all_losses_tensor, op=torch.distributed.ReduceOp.AVG)
-        loss = all_losses_tensor.detach().cpu().numpy().item()
+        loss = all_reduce_mean(all_losses_tensor).item()
         
         val_metrics = running_val_metrics.get_scores()
         running_val_metrics.reset()
