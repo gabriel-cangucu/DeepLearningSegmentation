@@ -32,7 +32,7 @@ class ToTensor(object):
         tensor_sample = {}
 
         tensor_sample['inputs'] = torch.tensor(sample['img'].astype(np.float32))
-        tensor_sample['labels'] = torch.tensor(sample['labels'][0].astype(np.float32)).long()
+        tensor_sample['labels'] = torch.tensor(sample['labels'].astype(np.float32)).long()
         tensor_sample['dates'] = torch.tensor(np.array(sample['doy']))
 
         return tensor_sample

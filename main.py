@@ -26,7 +26,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         inputs = sample['inputs'].to(device)
         targets = sample['labels'].to(device)
 
-        scaler = torch.amp.GradScaler(device.type, enabled=True)
+        scaler = torch.GradScaler()
 
         with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=True):
             outputs = net(inputs)
@@ -52,7 +52,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
 
         num_classes = int(config['MODEL']['num_classes'])
         ignore_index = int(config['SOLVER']['ignore_index'])
-        running_val_metrics = RunningMetrics(num_classes, ignore_index, device)
+        running_val_metrics = RunningMetrics(num_classes, ignore_index)
 
         all_losses_tensor = torch.zeros(len(val_loader)).to(device)
 
@@ -101,7 +101,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
 
     num_classes = config['MODEL']['num_classes']
     ignore_index = config['SOLVER']['ignore_index']
-    running_train_metrics = RunningMetrics(num_classes, ignore_index, device)
+    running_train_metrics = RunningMetrics(num_classes, ignore_index)
 
     writer = SummaryWriter(save_path)
 
@@ -114,7 +114,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         for idx, sample in enumerate(dataloaders['train'], start=1):
             step = idx + (epoch - start_epoch)*num_train_steps
 
-            loss, train_metrics = train_step(net, sample=sample, running_metrics=running_train_metrics,
+            loss, train_metrics = train_step(net, sample=sample, running_train_metrics=running_train_metrics,
                                              loss_fn=loss_fn, optimizer=optimizer, device=device)
 
             # Printing metrics
