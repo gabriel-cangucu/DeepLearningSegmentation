@@ -6,7 +6,8 @@ from data.PASTIS24.dataloader import get_dataloader as get_pastis_dataloader
 from data.PASTIS24.data_transforms import get_transforms as get_pastis_transforms
 
 
-def get_dataloaders(config: dict[str, Any]) -> dict[str, torch.utils.data.DataLoader]:
+def get_dataloaders(config: dict[str, Any]) -> tuple[dict[str, torch.utils.data.DataLoader],
+                                                     torch.utils.data.Sampler]:
     dataset_map = {
         'PASTIS24': (get_pastis_dataloader, get_pastis_transforms)
     }
@@ -25,7 +26,7 @@ def get_dataloaders(config: dict[str, Any]) -> dict[str, torch.utils.data.DataLo
     
     assert type(train_config['root_dir']) == type(train_config['csv_path']) == str
 
-    dataloader['train'] = loader_fn(
+    dataloader['train'], sampler = loader_fn(
         root_dir=train_config['root_dir'],
         csv_path=train_config['csv_path'],
         batch_size=int(train_config['batch_size']),
@@ -46,7 +47,7 @@ def get_dataloaders(config: dict[str, Any]) -> dict[str, torch.utils.data.DataLo
         
         assert type(val_config['root_dir']) == type(val_config['csv_path']) == str
 
-        dataloader['val'] = loader_fn(
+        dataloader['val'], _ = loader_fn(
             root_dir=val_config['root_dir'],
             csv_path=val_config['csv_path'],
             batch_size=int(val_config['batch_size']),
@@ -55,4 +56,4 @@ def get_dataloaders(config: dict[str, Any]) -> dict[str, torch.utils.data.DataLo
             shuffle=False
         )
 
-    return dataloader
+    return dataloader, sampler

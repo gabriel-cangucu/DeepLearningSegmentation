@@ -2,7 +2,7 @@ import torch
 import sys
 from typing import Any
 
-from utils.device_utils import get_current_device
+from utils.distributed_utils import get_current_device
 from models.unet import Unet
 from models.vit import ViT
 from models.tsvit import TSViT

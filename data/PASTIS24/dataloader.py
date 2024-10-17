@@ -5,23 +5,26 @@ import pickle
 import torch
 from torchvision import transforms
 
+from utils.distributed_utils import is_distributed
+
 
 def get_dataloader(root_dir: str, csv_path: str, batch_size: int=32, num_workers: int=4,
                    shuffle: bool=True, transform: transforms.Compose=None
-                   ) -> torch.utils.data.DataLoader:
+                   ) -> tuple[torch.utils.data.DataLoader, torch.utils.data.Sampler]:
     dataset = PastisDataset(root_dir=root_dir, csv_path=csv_path, transform=transform)
 
     # Distributed dataloader
-    if torch.distributed.get_world_size() > 1:
+    if is_distributed:
         sampler = torch.utils.data.distributed.DistributedSampler(dataset)
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
                                                  num_workers=num_workers, pin_memory=True,
                                                  sampler=sampler)
     else:
+        sampler = None
         dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
                                                  num_workers=num_workers)
 
-    return dataloader
+    return dataloader, sampler
 
 
 class PastisDataset(torch.utils.data.Dataset):
