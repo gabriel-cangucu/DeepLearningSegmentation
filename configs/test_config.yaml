@@ -46,7 +46,7 @@ SOLVER:
     loss_function: 'cross_entropy'
     class_weights:
     ignore_index: 19
-    # lr_scheduler: 'cosine'
+    lr_scheduler: 'plateau'
     lr_base: 1e-3
     lr_min: 5e-6
     # lr_start: 1e-8

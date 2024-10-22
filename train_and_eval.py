@@ -98,10 +98,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
     learning_rate = float(config['SOLVER']['lr_base'])
     weight_decay = float(config['SOLVER']['weight_decay'])
     optimizer = torch.optim.AdamW(net.parameters(), lr=learning_rate, weight_decay=weight_decay)
-
-    num_warmup_epochs = int(config['SOLVER']['num_warmup_epochs'])
-    lr_min = float(config['SOLVER']['lr_min'])
-    scheduler = get_scheduler(optimizer, num_warmup_epochs=num_warmup_epochs, lr_min=lr_min)
+    scheduler = get_scheduler(config, optimizer)
 
     num_classes = config['MODEL']['num_classes']
     ignore_index = config['SOLVER']['ignore_index']
