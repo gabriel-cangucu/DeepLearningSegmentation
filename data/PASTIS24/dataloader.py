@@ -14,9 +14,9 @@ def get_dataloader(root_dir: str, csv_path: str, batch_size: int=32, num_workers
     dataset = PastisDataset(root_dir=root_dir, csv_path=csv_path, transform=transform)
 
     # Distributed dataloader
-    if is_distributed:
-        sampler = torch.utils.data.distributed.DistributedSampler(dataset)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
+    if is_distributed():
+        sampler = torch.utils.data.distributed.DistributedSampler(dataset, shuffle=shuffle)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
                                                  num_workers=num_workers, pin_memory=True,
                                                  sampler=sampler)
     else:

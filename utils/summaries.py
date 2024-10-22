@@ -10,7 +10,7 @@ def write_summaries(writer: torch.utils.tensorboard.SummaryWriter, metrics: dict
             global_step=step
         )
     
-    writer.add_scalar('loss', scalar_value=loss, global_step=step)
+    writer.add_scalar(f'loss/{mode}', scalar_value=loss, global_step=step)
     
     if optimizer is not None:
         writer.add_scalar(

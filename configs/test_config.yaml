@@ -21,7 +21,7 @@ DATASETS:
         csv_path: '/pgeoprj/godeep/ewab/datasets/PASTIS24/fold-paths/folds_1_123_paths.csv'
         max_seq_len: 60
         batch_size: 16
-        num_workers: 4
+        num_workers: 2
     
     val:
         dataset_name: 'PASTIS24'
@@ -29,7 +29,7 @@ DATASETS:
         csv_path: '/pgeoprj/godeep/ewab/datasets/PASTIS24/fold-paths/fold_4_paths.csv'
         max_seq_len: 60
         batch_size: 24
-        num_workers: 4
+        num_workers: 2
     
     test:
         dataset_name: 'PASTIS24'
@@ -37,11 +37,11 @@ DATASETS:
         csv_path: '/pgeoprj/godeep/ewab/datasets/PASTIS24/fold-paths/fold_5_paths.csv'
         max_seq_len: 60
         batch_size: 24
-        num_workers: 4
+        num_workers: 2
 
 SOLVER:
     num_epochs: 100
-    # num_warmup_epochs: 10
+    num_warmup_epochs: 10
     start_epoch: 1
     loss_function: 'cross_entropy'
     class_weights:
@@ -54,6 +54,6 @@ SOLVER:
 
 CHECKPOINT:
     load_from_checkpoint:
-    save_path: 'models/saved_models/test'
+    save_path: 'experiments'
     train_metrics_steps: 250
     eval_steps: 2000

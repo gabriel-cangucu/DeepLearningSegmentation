@@ -1,5 +1,6 @@
 import os
 import torch
+import warnings
 from torch.utils.tensorboard import SummaryWriter
 from argparse import ArgumentParser
 from typing import Any
@@ -14,6 +15,8 @@ from utils.torch_utils import load_from_checkpoint
 from utils.lr_scheduler import get_scheduler
 from utils.summaries import write_summaries
 
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
 
 def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataLoader,
                        sampler: torch.utils.data.Sampler, config: dict[str, Any]) -> None:
@@ -25,7 +28,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         inputs = sample['inputs'].to(device)
         targets = sample['labels'].to(device)
 
-        scaler = torch.GradScaler()
+        scaler = torch.cuda.amp.GradScaler()
 
         with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=True):
             outputs = net(inputs)
@@ -36,7 +39,9 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         scaler.update()
 
         optimizer.zero_grad(set_to_none=True)
-        loss = dist.all_reduce_mean(loss_tensor).item()
+        
+        dist.all_reduce_mean(loss_tensor)
+        loss = loss_tensor.item()
 
         running_train_metrics.update(outputs, targets)
         train_metrics = running_train_metrics.get_scores()
@@ -68,7 +73,8 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
             running_val_metrics.update(outputs, targets)
         
         all_losses_tensor = all_losses_tensor.mean()
-        loss = dist.all_reduce_mean(all_losses_tensor).item()
+        dist.all_reduce_mean(all_losses_tensor)
+        loss = all_losses_tensor.item()
         
         val_metrics = running_val_metrics.get_scores()
         running_val_metrics.reset()
@@ -83,9 +89,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
 
     save_path = config['CHECKPOINT']['save_path']
     assert type(save_path) == str
-
-    if save_path and not os.path.exists(save_path):
-        os.makedirs(save_path)
+    os.makedirs(save_path, exist_ok=True)
     
     device = dist.get_current_device()
 
@@ -95,8 +99,9 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
     weight_decay = float(config['SOLVER']['weight_decay'])
     optimizer = torch.optim.AdamW(net.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
-    num_train_steps = len(dataloaders['train'])
-    scheduler = get_scheduler(config, optimizer, num_train_steps)
+    num_warmup_epochs = int(config['SOLVER']['num_warmup_epochs'])
+    lr_min = float(config['SOLVER']['lr_min'])
+    scheduler = get_scheduler(optimizer, num_warmup_epochs=num_warmup_epochs, lr_min=lr_min)
 
     num_classes = config['MODEL']['num_classes']
     ignore_index = config['SOLVER']['ignore_index']
@@ -114,25 +119,27 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
             sampler.set_epoch(epoch)
 
         for idx, sample in enumerate(dataloaders['train'], start=1):
-            step = idx + (epoch - start_epoch)*num_train_steps
+            step = idx + (epoch - start_epoch)*len(dataloaders['train'])
 
             loss, train_metrics = train_step(net, sample=sample, running_train_metrics=running_train_metrics,
                                              loss_fn=loss_fn, optimizer=optimizer, device=device)
 
             # Printing metrics
-            if step % config['CHECKPOINT']['train_metrics_steps'] == 0:
+            if step % int(config['CHECKPOINT']['train_metrics_steps']) == 0:
                 write_summaries(writer, metrics=train_metrics, loss=loss, step=step,
                                 mode='train', optimizer=optimizer)
 
                 if dist.is_main_process():
-                    print((f'Step: {step}, '
+                    print((
+                        f'Step: {step}, '
+                        f'Epoch: {epoch}, '
                         f'Loss: {loss:.3f}, '
                         f'Lr: {scheduler.get_last_lr()[0]:.5f}, '
                         f'Mean IOU: {train_metrics["mean_iou"]:.3f}'
                     ))
 
             # Storing the best model
-            if step % config['CHECKPOINT']['eval_steps'] == 0:
+            if step % int(config['CHECKPOINT']['eval_steps']) == 0:
                 loss, val_metrics = evaluate(net, val_loader=dataloaders['val'], config=config,
                                              loss_fn=loss_fn, device=device)
             
@@ -163,8 +170,9 @@ if __name__ == '__main__':
     dist.init_distributed_process()
 
     if dist.is_main_process():
+        print('PyTorch version:  ', torch.__version__)
         print('Is CUDA available:', torch.cuda.is_available())
-        print('Number of GPUs:', torch.distributed.get_world_size())
+        print('Number of GPUs:   ', torch.distributed.get_world_size())
 
     dataloaders, sampler = get_dataloaders(config)
     net = get_model(config)

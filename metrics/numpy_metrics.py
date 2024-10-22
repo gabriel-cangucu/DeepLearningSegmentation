@@ -2,7 +2,7 @@ import torch
 import numpy as np
 from sklearn.metrics import confusion_matrix
 
-from utils.distributed_utils import all_reduce_mean
+from utils.distributed_utils import all_reduce_mean, get_current_device
 
 np.seterr(divide='ignore', invalid='ignore')
 
@@ -43,7 +43,8 @@ class RunningMetrics(object):
             'mean_f1',
             'mean_iou'
         ]
-        metrics_tensor = torch.zeros(len(metrics))
+        device = get_current_device()
+        metrics_tensor = torch.zeros(len(metrics)).to(device)
 
         diag = np.diagonal(self.conf_matrix)
 
@@ -73,7 +74,7 @@ class RunningMetrics(object):
         iou = np.nan_to_num(diag / (row_sum + col_sum - diag))
         metrics_tensor[5] = np.mean(iou).item()
 
-        metrics_tensor = all_reduce_mean(metrics_tensor)
+        all_reduce_mean(metrics_tensor)
 
         return {metric: metrics_tensor[i].item() for i, metric in enumerate(metrics)}
 
