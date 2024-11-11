@@ -6,13 +6,17 @@ from utils.distributed_utils import get_current_device
 from models.unet import Unet
 from models.vit import ViT
 from models.tsvit import TSViT
+from models.flexi_tsvit import FlexiTSViT
+from models.tsvit_sin import TSViT_Sin
 
 
 def get_model(config: dict[str, Any]) -> torch.nn.Module:
     model_map = {
         'unet': Unet,
         'vit': ViT,
-        'tsvit': TSViT
+        'tsvit': TSViT,
+        'flexi_tsvit': FlexiTSViT,
+        'tsvit_sin': TSViT_Sin
     }
 
     model_config = config['MODEL']

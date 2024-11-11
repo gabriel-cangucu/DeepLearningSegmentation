@@ -33,7 +33,7 @@ def unfold_reshape(img: torch.tensor, size: int):
     return img
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Turns original high res images into smaller patches')
 
     parser.add_argument('--rootdir', type=str, help='PASTIS24 root dir')

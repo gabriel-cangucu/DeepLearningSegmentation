@@ -1,4 +1,5 @@
 import os
+import sys
 import torch
 import warnings
 from torch.utils.tensorboard import SummaryWriter
@@ -20,9 +21,9 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataLoader,
                        sampler: torch.utils.data.Sampler, config: dict[str, Any]) -> None:
-    def train_step(net: torch.nn.Module, sample: dict[str, torch.tensor],
-                   running_train_metrics: RunningMetrics, loss_fn: torch.nn, optimizer: torch.optim,
-                   device: torch.device) -> tuple[float, dict[str, float]]:
+
+    def train_step(net: torch.nn.Module, sample: dict[str, torch.tensor], running_train_metrics: RunningMetrics,
+                   loss_fn: torch.nn, optimizer: torch.optim, device: torch.device) -> dict[str, float]:
         net.train()
 
         inputs = sample['inputs'].to(device)
@@ -45,13 +46,13 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
 
         running_train_metrics.update(outputs, targets)
         train_metrics = running_train_metrics.get_scores()
+        train_metrics['loss'] = loss
 
-        return loss, train_metrics
+        return train_metrics
 
 
-    def evaluate(net: torch.nn.Module, val_loader: torch.utils.data.DataLoader,
-                 config: dict[str, Any], loss_fn: torch.nn, device: torch.device
-                 ) -> tuple[float, dict[str, float]]:
+    def evaluate(net: torch.nn.Module, val_loader: torch.utils.data.DataLoader, config: dict[str, Any],
+                 loss_fn: torch.nn, device: torch.device) -> dict[str, float]:
         net.eval()
 
         num_classes = int(config['MODEL']['num_classes'])
@@ -77,9 +78,10 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         loss = all_losses_tensor.item()
         
         val_metrics = running_val_metrics.get_scores()
+        val_metrics['loss'] = loss
         running_val_metrics.reset()
 
-        return loss, val_metrics
+        return val_metrics
 
 
     checkpoint_path = config['CHECKPOINT']['load_from_checkpoint']
@@ -118,34 +120,34 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         for idx, sample in enumerate(dataloaders['train'], start=1):
             step = idx + (epoch - start_epoch)*len(dataloaders['train'])
 
-            loss, train_metrics = train_step(net, sample=sample, running_train_metrics=running_train_metrics,
-                                             loss_fn=loss_fn, optimizer=optimizer, device=device)
+            train_metrics = train_step(net, sample=sample, running_train_metrics=running_train_metrics,
+                                       loss_fn=loss_fn, optimizer=optimizer, device=device)
 
             # Printing metrics
             if step % int(config['CHECKPOINT']['train_metrics_steps']) == 0:
-                write_summaries(writer, metrics=train_metrics, loss=loss, step=step,
-                                mode='train', optimizer=optimizer)
+                write_summaries(writer, metrics=train_metrics, step=step, mode='train',
+                                optimizer=optimizer)
 
                 if dist.is_main_process():
                     print((
                         f'Step: {step}, '
                         f'Epoch: {epoch}, '
-                        f'Loss: {loss:.3f}, '
-                        f'Lr: {scheduler.get_last_lr()[0]:.5f}, '
+                        f'Loss: {train_metrics["loss"]:.3f}, '
+                        f'Lr: {scheduler.get_last_lr()[0]:.5f}, '  # Bug on torch version 2.1
                         f'Mean IOU: {train_metrics["mean_iou"]:.3f}'
                     ))
 
             # Storing the best model
             if step % int(config['CHECKPOINT']['eval_steps']) == 0:
-                loss, val_metrics = evaluate(net, val_loader=dataloaders['val'], config=config,
-                                             loss_fn=loss_fn, device=device)
+                val_metrics = evaluate(net, val_loader=dataloaders['val'], config=config,
+                                       loss_fn=loss_fn, device=device)
             
                 if val_metrics['mean_iou'] > BEST_IOU:
                     torch.save(net.state_dict(), f'{save_path}/best_model.pt')
                     BEST_IOU = val_metrics['mean_iou']
 
-                write_summaries(writer, metrics=val_metrics, loss=loss, step=step,
-                                mode='val', optimizer=optimizer)
+                write_summaries(writer, metrics=val_metrics, step=step, mode='val',
+                                optimizer=optimizer)
         
         # Adjusting the learning rate
         scheduler.step()
@@ -160,9 +162,12 @@ if __name__ == '__main__':
         help='Configurarion (.yaml) file to use',
         type=str
     )
-
     args = parser.parse_args()
-    config = read_yaml(args.config)
+
+    try:
+        config = read_yaml(args.config)
+    except TypeError:
+        sys.exit('Expected path to config file via the --config flag.')
 
     dist.init_distributed_process()
 

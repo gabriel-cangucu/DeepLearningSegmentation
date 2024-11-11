@@ -2,15 +2,14 @@ import torch
 import sys
 from typing import Any
 from torch.optim.lr_scheduler import (
-    ExponentialLR, ReduceLROnPlateau, CosineAnnealingWarmRestarts
+    ExponentialLR, ReduceLROnPlateau, CyclicLR, CosineAnnealingWarmRestarts
 )
 
 
 def get_scheduler(config: dict[str, Any], optimizer: torch.optim) -> torch.optim.lr_scheduler:
     scheduler_map = {
         'exponential': (ExponentialLR, {'gamma': 0.1}),
-        'plateau': (ReduceLROnPlateau, {}),
-        'cosine': (CosineAnnealingWarmRestarts, {'T_0': 10, 'eta_min': 5e-6})
+        'cosine': (CosineAnnealingWarmRestarts, {'T_0': 10, 'T_mult': 2, 'eta_min': 5e-6})
     }
 
     solver_config = config['SOLVER']

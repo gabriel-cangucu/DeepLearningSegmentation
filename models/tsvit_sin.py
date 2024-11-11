@@ -1,8 +1,8 @@
 import torch
+import math
 from einops import repeat, rearrange
 from einops.layers.torch import Rearrange
 from typing import Any
-from torchinfo import summary
 
 
 class PatchEmbedding(torch.nn.Module):
@@ -152,7 +152,36 @@ class TransformerEncoder(torch.nn.Sequential):
         super().__init__(*[TransformerEncoderBlock(**kwargs) for _ in range(depth)])
 
 
-class TSViT(torch.nn.Module):
+class SinusoidalEmbeddings(torch.nn.Module):
+
+    def __init__(self, embedding_dim: int):
+        super().__init__()
+        self.embedding_dim = embedding_dim
+
+
+    def forward(self, positions: torch.tensor) -> torch.tensor:
+        """
+        positions: [batch, position]
+                   Can be integers or floats (e.g. position 4.5)
+        """
+        assert positions.ndim == 2  # [batch, position]
+
+        half_dim = self.embedding_dim // 2
+
+        emb = math.log(10000) / (half_dim - 1)
+        emb = torch.exp(torch.arange(half_dim, dtype=torch.float, device=positions.device) * -emb)
+
+        emb = positions.unsqueeze(-1) * emb.view(1, 1, -1)
+        emb = torch.cat([torch.sin(emb), torch.cos(emb)], dim=-1)
+
+        if self.embedding_dim % 2 == 1:
+            # zero pad
+            emb = torch.cat([emb, torch.zeros_like(emb[:, :, :1])], dim=-1)
+
+        return emb
+
+
+class TSViT_Sin(torch.nn.Module):
 
     def __init__(self, config: dict[str, Any]) -> None:
         super().__init__()
@@ -170,7 +199,9 @@ class TSViT(torch.nn.Module):
         self.to_temporal_embedding = PatchEmbedding(**config)
         self.temporal_transformer = TransformerEncoder(depth=self.temporal_depth, **config)
 
-        self.space_pos_embedding = torch.nn.Parameter(torch.randn(1, self.num_patches, self.embed_size))
+        to_sinusoidal_embedding = SinusoidalEmbeddings(self.embed_size)
+        sin_embedding = to_sinusoidal_embedding(torch.arange(self.num_patches).unsqueeze(0))
+        self.space_pos_embedding = torch.nn.Parameter(sin_embedding)
         self.spatial_transformer = TransformerEncoder(depth=self.spatial_depth, **config)
 
         self.dropout = torch.nn.Dropout(self.embed_dropout_prob)
@@ -228,7 +259,10 @@ if __name__ == '__main__':
         'forward_scale': 4
     }
 
-    model = TSViT(config)
+    model = TSViT_2D(config)
     batch_size = 16
 
-    summary(model, input_size=(batch_size, 60, 11, 24, 24))
+    input = torch.zeros(batch_size, 60, 11, 24, 24)
+    output = model(input)
+
+    print(output.shape)
