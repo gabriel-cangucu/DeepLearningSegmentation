@@ -4,12 +4,15 @@ from typing import Any
 
 from data.PASTIS24.dataloader import get_dataloader as get_pastis_dataloader
 from data.PASTIS24.data_transforms import get_transforms as get_pastis_transforms
+from data.Synthetic.dataloader import get_dataloader as get_synthetic_dataloader
+from data.Synthetic.data_transforms import get_transforms as get_synthetic_transforms
 
 
 def get_dataloaders(config: dict[str, Any]) -> tuple[dict[str, torch.utils.data.DataLoader],
                                                      torch.utils.data.Sampler]:
     dataset_map = {
-        'PASTIS24': (get_pastis_dataloader, get_pastis_transforms)
+        'PASTIS24': (get_pastis_dataloader, get_pastis_transforms),
+        'Synthetic': (get_synthetic_dataloader, get_synthetic_transforms)
     }
 
     dataloader = {}

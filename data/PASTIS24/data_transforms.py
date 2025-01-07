@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 from typing import Any
-from torchvision import transforms
+from torchvision.transforms import v2 as transforms
 from einops import rearrange
 
 

@@ -6,7 +6,7 @@ def write_summaries(writer: torch.utils.tensorboard.SummaryWriter, metrics: dict
     for metric in metrics.keys():
         writer.add_scalars(
             metric,
-            tag_scalar_dict={f'{mode}': metrics[metric]},
+            tag_scalar_dict={mode: metrics[metric]},
             global_step=step
         )
     

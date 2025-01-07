@@ -10,10 +10,10 @@ np.seterr(divide='ignore', invalid='ignore')
 class RunningMetrics(object):
 
     def __init__(self, num_classes: int, ignore_index: int) -> None:
-        self.num_classes = num_classes
+        self.num_classes = max(2, num_classes)
         self.ignore_index = ignore_index
 
-        self.conf_matrix = np.zeros((num_classes, num_classes))
+        self.conf_matrix = np.zeros((self.num_classes, self.num_classes))
 
 
     def update(self, logits: torch.tensor, labels: torch.tensor) -> None:
@@ -24,6 +24,8 @@ class RunningMetrics(object):
 
         # Filtering unwanted class
         if self.ignore_index is not None:
+            assert type(self.ignore_index) == int
+
             mask = (labels != self.ignore_index)
 
             preds = preds[mask]

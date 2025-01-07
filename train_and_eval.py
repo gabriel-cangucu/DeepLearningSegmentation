@@ -56,7 +56,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         net.eval()
 
         num_classes = int(config['MODEL']['num_classes'])
-        ignore_index = int(config['SOLVER']['ignore_index'])
+        ignore_index = config['SOLVER']['ignore_index']
         running_val_metrics = RunningMetrics(num_classes, ignore_index)
 
         all_losses_tensor = torch.zeros(len(val_loader)).to(device)
@@ -102,7 +102,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
     optimizer = torch.optim.AdamW(net.parameters(), lr=learning_rate, weight_decay=weight_decay)
     scheduler = get_scheduler(config, optimizer)
 
-    num_classes = config['MODEL']['num_classes']
+    num_classes = int(config['MODEL']['num_classes'])
     ignore_index = config['SOLVER']['ignore_index']
     running_train_metrics = RunningMetrics(num_classes, ignore_index)
 
