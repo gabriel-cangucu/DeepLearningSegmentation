@@ -16,7 +16,7 @@ from utils.torch_utils import load_from_checkpoint
 from utils.lr_scheduler import get_scheduler
 from utils.summaries import write_summaries
 
-warnings.simplefilter(action='ignore', category=FutureWarning)
+# warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataLoader,
@@ -133,7 +133,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
                         f'Step: {step}, '
                         f'Epoch: {epoch}, '
                         f'Loss: {train_metrics["loss"]:.3f}, '
-                        f'Lr: {scheduler.get_last_lr()[0]:.5f}, '  # Bug on torch version 2.1
+                        f'Lr: {scheduler.get_last_lr()[0]:.5f}, '
                         f'Mean IOU: {train_metrics["mean_iou"]:.3f}'
                     ))
 

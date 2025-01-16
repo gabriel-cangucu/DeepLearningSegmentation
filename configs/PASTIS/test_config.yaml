@@ -47,6 +47,7 @@ SOLVER:
     ignore_index: 19
     lr_scheduler: 'cosine'
     lr_base: 1e-3
+    lr_min: 5e-6
     weight_decay: 0.000
 
 CHECKPOINT:
