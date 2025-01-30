@@ -1,29 +1,28 @@
 import os
 import sys
 import torch
-import warnings
 from torch.utils.tensorboard import SummaryWriter
 from argparse import ArgumentParser
 from typing import Any
 
 import utils.distributed_utils as dist
+import utils.ssl_utils as ssl
 from data import get_dataloaders
 from models import get_model
 from metrics.loss_functions import get_loss
 from metrics.numpy_metrics import RunningMetrics
 from utils.config_files_utils import read_yaml
-from utils.torch_utils import load_from_checkpoint
 from utils.lr_scheduler import get_scheduler
 from utils.summaries import write_summaries
-
-# warnings.simplefilter(action='ignore', category=FutureWarning)
+from utils.torch_utils import load_from_checkpoint, logits_to_preds
+from utils.validation_utils import ValidationMonitor
 
 
 def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataLoader,
                        sampler: torch.utils.data.Sampler, config: dict[str, Any]) -> None:
 
-    def train_step(net: torch.nn.Module, sample: dict[str, torch.tensor], running_train_metrics: RunningMetrics,
-                   loss_fn: torch.nn, optimizer: torch.optim, device: torch.device) -> dict[str, float]:
+    def train_step(net: torch.nn.Module, sample: dict[str, torch.Tensor], running_train_metrics: RunningMetrics,
+                   loss_fn: torch.nn, optimizer: torch.optim, num_classes: int, device: torch.device) -> dict[str, float]:
         net.train()
 
         inputs = sample['inputs'].to(device)
@@ -44,7 +43,10 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         dist.all_reduce_mean(loss_tensor)
         loss = loss_tensor.item()
 
-        running_train_metrics.update(outputs, targets)
+        is_multiclass = True if num_classes > 1 else False
+        preds = logits_to_preds(outputs, is_multiclass=is_multiclass)
+
+        running_train_metrics.update(preds, targets)
         train_metrics = running_train_metrics.get_scores()
         train_metrics['loss'] = loss
 
@@ -67,11 +69,14 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
 
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=True):
                 outputs = net(inputs)
-                loss_tensor = loss_fn(outputs, targets)
 
+                loss_tensor = loss_fn(outputs, targets)
                 all_losses_tensor[idx] = loss_tensor.item()
-            
-            running_val_metrics.update(outputs, targets)
+
+            is_multiclass = True if num_classes > 1 else False
+            preds = logits_to_preds(outputs, is_multiclass=is_multiclass)
+
+            running_val_metrics.update(preds, targets)
         
         all_losses_tensor = all_losses_tensor.mean()
         dist.all_reduce_mean(all_losses_tensor)
@@ -84,10 +89,18 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
         return val_metrics
 
 
+    # To continue training a previous model
     checkpoint_path = config['CHECKPOINT']['load_from_checkpoint']
 
-    if checkpoint_path:
+    if checkpoint_path is not None:
         load_from_checkpoint(net, checkpoint_path)
+    
+    # To load encoder weights such as imagenet or from SSL
+    weights_path = config['CHECKPOINT']['load_from_pretrained_weights']
+
+    if weights_path is not None:
+        ssl.load_pretrained_weights(net, weights_path)
+        ssl.freeze_encoder_weights(net)
 
     save_path = config['CHECKPOINT']['save_path']
     assert type(save_path) == str
@@ -95,7 +108,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
     
     device = dist.get_current_device()
 
-    loss_fn = get_loss(config, device, reduction='mean')
+    loss_fn = get_loss(config, device)
 
     learning_rate = float(config['SOLVER']['lr_base'])
     weight_decay = float(config['SOLVER']['weight_decay'])
@@ -111,7 +124,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
     start_epoch = int(config['SOLVER']['start_epoch'])
     num_epochs = int(config['SOLVER']['num_epochs'])
 
-    BEST_IOU = 0.
+    val_monitor = ValidationMonitor(patience=3, delta=0.)
 
     for epoch in range(start_epoch, start_epoch + num_epochs):
         if dist.is_distributed():
@@ -121,12 +134,13 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
             step = idx + (epoch - start_epoch)*len(dataloaders['train'])
 
             train_metrics = train_step(net, sample=sample, running_train_metrics=running_train_metrics,
-                                       loss_fn=loss_fn, optimizer=optimizer, device=device)
+                                       loss_fn=loss_fn, optimizer=optimizer, num_classes=num_classes,
+                                       device=device)
 
             # Printing metrics
             if step % int(config['CHECKPOINT']['train_metrics_steps']) == 0:
                 write_summaries(writer, metrics=train_metrics, step=step, mode='train',
-                                optimizer=optimizer)
+                                learning_rate=scheduler.get_last_lr()[0])
 
                 if dist.is_main_process():
                     print((
@@ -134,20 +148,25 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
                         f'Epoch: {epoch}, '
                         f'Loss: {train_metrics["loss"]:.3f}, '
                         f'Lr: {scheduler.get_last_lr()[0]:.5f}, '
-                        f'Mean IOU: {train_metrics["mean_iou"]:.3f}'
+                        f'Train mean IoU: {train_metrics["mean_iou"]:.3f}'
                     ))
 
-            # Storing the best model
+            # Validation step
             if step % int(config['CHECKPOINT']['eval_steps']) == 0:
+
                 val_metrics = evaluate(net, val_loader=dataloaders['val'], config=config,
                                        loss_fn=loss_fn, device=device)
-            
-                if val_metrics['mean_iou'] > BEST_IOU:
+                
+                # Saving the best model
+                if val_monitor.improved_model(mean_iou=val_metrics['mean_iou']):
                     torch.save(net.state_dict(), f'{save_path}/best_model.pt')
-                    BEST_IOU = val_metrics['mean_iou']
+
+                # Unfreezing encoder weights if validation loss stops improving
+                if weights_path is not None and val_monitor.reached_plateau(val_loss=val_metrics['loss']):
+                    ssl.unfreeze_encoder_weights(net)
 
                 write_summaries(writer, metrics=val_metrics, step=step, mode='val',
-                                optimizer=optimizer)
+                                learning_rate=scheduler.get_last_lr()[0])
         
         # Adjusting the learning rate
         scheduler.step()
@@ -155,7 +174,7 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser(description='Deep learning segmentation models')
+    parser = ArgumentParser(description='Train and eval deep learning segmentation models')
 
     parser.add_argument(
         '--config',

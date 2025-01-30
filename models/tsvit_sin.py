@@ -23,7 +23,7 @@ class PatchEmbedding(torch.nn.Module):
         self.cls_tokens = torch.nn.Parameter(torch.randn(1, num_classes, embed_size))
 
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         b, t, _, _, _ = x.shape
 
         # Splitting images and dates
@@ -69,7 +69,7 @@ class MultiHeadAttention(torch.nn.Module):
         self.att_drop = torch.nn.Dropout(dropout_prob)
     
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Splitting keys, queries and values in num_heads
         qkv = rearrange(self.qkv(x), 'b n (h d qkv) -> (qkv) b h n d', h=self.num_heads, qkv=3)
         queries, keys, values = qkv[0], qkv[1], qkv[2]
@@ -113,7 +113,7 @@ class ResidualAdd(torch.nn.Module):
         self.fn = fn
 
 
-    def forward(self, x: torch.tensor, **kwargs: dict[str, Any]) -> torch.tensor:
+    def forward(self, x: torch.Tensor, **kwargs: dict[str, Any]) -> torch.Tensor:
         res = x
         x = self.fn(x, **kwargs)
         x += res
@@ -159,7 +159,7 @@ class SinusoidalEmbeddings(torch.nn.Module):
         self.embedding_dim = embedding_dim
 
 
-    def forward(self, positions: torch.tensor) -> torch.tensor:
+    def forward(self, positions: torch.Tensor) -> torch.Tensor:
         """
         positions: [batch, position]
                    Can be integers or floats (e.g. position 4.5)
@@ -212,7 +212,7 @@ class TSViT_Sin(torch.nn.Module):
         )
 
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert len(x.shape) == 5
         _, _, _, H, W = x.shape
 

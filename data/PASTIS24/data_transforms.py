@@ -23,12 +23,10 @@ class ToTensor(object):
     '''
     Converts numpy arrays in a sample into torch tensors
     '''
-
     def __init__(self) -> None:
         pass
 
-
-    def __call__(self, sample: dict[str, np.array]) -> dict[str, torch.tensor]:
+    def __call__(self, sample: dict[str, np.array]) -> dict[str, torch.Tensor]:
         tensor_sample = {}
 
         tensor_sample['inputs'] = torch.tensor(sample['img'].astype(np.float32))
@@ -42,7 +40,6 @@ class Normalize(object):
     '''
     Normalizes inputs based on precomputed values
     '''
-
     def __init__(self) -> None:
         self.mean_fold1 = np.array([
             1165.9398193359375,
@@ -70,8 +67,7 @@ class Normalize(object):
             1299.2833251953125
         ]).astype(np.float32)
 
-
-    def __call__(self, sample: dict[str, torch.tensor]) -> dict[str, torch.tensor]:
+    def __call__(self, sample: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         mean_fold1 = rearrange(self.mean_fold1, 'c -> 1 c 1 1')
         std_fold1 = rearrange(self.std_fold1, 'c -> 1 c 1 1')
 
@@ -84,13 +80,11 @@ class ConcatDates(object):
     '''
     Turns a 1D dates array to match the height and width of the input and concats it
     '''
-
     def __init__(self, height: int, width: int) -> None:
         self.height = height
         self.width = width
 
-
-    def __call__(self, sample: dict[str, torch.tensor]) -> dict[str, torch.tensor]:
+    def __call__(self, sample: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         dates = sample['dates']
         dates = dates.repeat(1, self.height, self.width, 1)
         dates = rearrange(dates, 'c h w t -> t c h w')
@@ -105,12 +99,10 @@ class CutOrPad(object):
     '''
     Pads time series with zeros to a max sequence length or cuts sequential parts
     '''
-    
     def __init__(self, max_seq_len: int) -> None:
         self.max_seq_len = max_seq_len
     
-
-    def __call__(self, sample: dict[str, torch.tensor]) -> dict[str, torch.tensor]:
+    def __call__(self, sample: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
         resized_inputs = sample['inputs']
 
         seq_len = resized_inputs.shape[0]

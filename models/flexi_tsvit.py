@@ -29,7 +29,7 @@ class FlexiPatchEmbedding(torch.nn.Module):
         self.cls_tokens = torch.nn.Parameter(torch.randn(1, num_classes, embed_size))
 
 
-    def forward(self, x: torch.tensor, new_patch_size: int) -> torch.tensor:
+    def forward(self, x: torch.Tensor, new_patch_size: int) -> torch.Tensor:
         b, t, _, _, _ = x.shape
         new_num_patches = (self.img_res // new_patch_size)**2
 
@@ -59,7 +59,7 @@ class FlexiPatchEmbedding(torch.nn.Module):
         return x
     
 
-    def _resize(self, x: torch.tensor, shape: tuple[int, int]) -> torch.tensor:
+    def _resize(self, x: torch.Tensor, shape: tuple[int, int]) -> torch.Tensor:
         x_resized = torch.nn.functional.interpolate(
             x[None, None, ...],
             shape,
@@ -70,7 +70,7 @@ class FlexiPatchEmbedding(torch.nn.Module):
         return x_resized[0, 0, ...]
     
 
-    def _calculate_pseudo_inverse(self, old_shape: tuple[int, int], new_shape: tuple[int, int]) -> torch.tensor:
+    def _calculate_pseudo_inverse(self, old_shape: tuple[int, int], new_shape: tuple[int, int]) -> torch.Tensor:
         matrix = []
 
         for i in range(np.prod(old_shape)):
@@ -84,7 +84,7 @@ class FlexiPatchEmbedding(torch.nn.Module):
         return torch.linalg.pinv(resized_matrix)
     
 
-    def _resize_embeddings(self, patch_embed: torch.tensor, new_patch_size: int) -> torch.tensor:
+    def _resize_embeddings(self, patch_embed: torch.Tensor, new_patch_size: int) -> torch.Tensor:
         if new_patch_size not in self.pseudo_inverses.keys():
             old_shape = (self.patch_size, self.patch_size)
             new_shape = (new_patch_size, new_patch_size)
@@ -94,7 +94,7 @@ class FlexiPatchEmbedding(torch.nn.Module):
         device = get_current_device()
         p_inv = self.pseudo_inverses[new_patch_size].to(device)
 
-        def resample_patch_embed(patch_embed: torch.tensor) -> torch.tensor:
+        def resample_patch_embed(patch_embed: torch.Tensor) -> torch.Tensor:
             resampled_kernel = p_inv @ patch_embed.reshape(-1)
             return rearrange(resampled_kernel, '(h w) -> h w', h=new_patch_size, w=new_patch_size)
 
@@ -103,7 +103,7 @@ class FlexiPatchEmbedding(torch.nn.Module):
         return patch_embed_map(patch_embed)
     
 
-    def resize_and_project(self, x: torch.tensor, new_patch_size: int) -> torch.tensor:
+    def resize_and_project(self, x: torch.Tensor, new_patch_size: int) -> torch.Tensor:
         if new_patch_size == self.patch_size:
             weight = self.projection[1].weight
         else:
@@ -133,7 +133,7 @@ class MultiHeadAttention(torch.nn.Module):
         self.att_drop = torch.nn.Dropout(dropout_prob)
     
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Splitting keys, queries and values in num_heads
         qkv = rearrange(self.qkv(x), 'b n (h d qkv) -> (qkv) b h n d', h=self.num_heads, qkv=3)
         queries, keys, values = qkv[0], qkv[1], qkv[2]
@@ -177,7 +177,7 @@ class ResidualAdd(torch.nn.Module):
         self.fn = fn
 
 
-    def forward(self, x: torch.tensor, **kwargs: dict[str, Any]) -> torch.tensor:
+    def forward(self, x: torch.Tensor, **kwargs: dict[str, Any]) -> torch.Tensor:
         res = x
         x = self.fn(x, **kwargs)
         x += res
@@ -247,7 +247,7 @@ class FlexiTSViT(torch.nn.Module):
         )
 
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert len(x.shape) == 5
         _, _, _, H, W = x.shape
 
@@ -277,7 +277,7 @@ class FlexiTSViT(torch.nn.Module):
         return x
     
 
-    def resize_pos_embed(self, pos_embed: torch.tensor, new_size: int) -> torch.tensor:
+    def resize_pos_embed(self, pos_embed: torch.Tensor, new_size: int) -> torch.Tensor:
         if self.patch_size == new_size:
             return pos_embed
 
@@ -289,7 +289,7 @@ class FlexiTSViT(torch.nn.Module):
         return pos_embed
 
 
-    def _resize(self, x: torch.tensor, shape: tuple[int, int]) -> torch.tensor:
+    def _resize(self, x: torch.Tensor, shape: tuple[int, int]) -> torch.Tensor:
         x_resized = torch.nn.functional.interpolate(
             x[None, None, ...],
             shape,
@@ -300,7 +300,7 @@ class FlexiTSViT(torch.nn.Module):
         return x_resized[0, 0, ...]
     
 
-    def _calculate_pseudo_inverse(self, old_shape: tuple[int, int], new_shape: tuple[int, int]) -> torch.tensor:
+    def _calculate_pseudo_inverse(self, old_shape: tuple[int, int], new_shape: tuple[int, int]) -> torch.Tensor:
         matrix = []
 
         for i in range(np.prod(old_shape)):
@@ -314,7 +314,7 @@ class FlexiTSViT(torch.nn.Module):
         return torch.linalg.pinv(resized_matrix)
     
 
-    def _resize_params(self, weight: torch.tensor, bias: torch.tensor, new_patch_size: int) -> torch.tensor:
+    def _resize_params(self, weight: torch.Tensor, bias: torch.Tensor, new_patch_size: int) -> torch.Tensor:
         if new_patch_size not in self.pseudo_inverses.keys():
             old_shape = (self.patch_size, self.patch_size)
             new_shape = (new_patch_size, new_patch_size)
@@ -324,7 +324,7 @@ class FlexiTSViT(torch.nn.Module):
         device = get_current_device()
         p_inv = self.pseudo_inverses[new_patch_size].to(device)
 
-        def resample_embedding(embedding: torch.tensor) -> torch.tensor:
+        def resample_embedding(embedding: torch.Tensor) -> torch.Tensor:
             return p_inv @ embedding
             
         resample_weight_map = torch.vmap(resample_embedding, 1, 1)
@@ -334,7 +334,7 @@ class FlexiTSViT(torch.nn.Module):
         return weight, bias
 
 
-    def resize_and_classify(self, x: torch.tensor, new_patch_size: int) -> torch.tensor:
+    def resize_and_classify(self, x: torch.Tensor, new_patch_size: int) -> torch.Tensor:
         if new_patch_size == self.patch_size:
             weight = self.mlp_head[1].weight
             bias = self.mlp_head[1].bias

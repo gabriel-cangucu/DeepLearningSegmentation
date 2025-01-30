@@ -2,7 +2,7 @@ import torch
 import sys
 from typing import Any
 from torch.optim.lr_scheduler import (
-    ExponentialLR, ReduceLROnPlateau, CosineAnnealingWarmRestarts
+    ExponentialLR, OneCycleLR, CosineAnnealingWarmRestarts
 )
 
 
@@ -10,12 +10,13 @@ def get_scheduler(config: dict[str, Any], optimizer: torch.optim) -> torch.optim
     solver_config = config['SOLVER']
 
     assert type(solver_config['lr_scheduler']) == str
-    lr_min = float(solver_config['lr_min']))
+    lr_base = float(solver_config['lr_base'])
+    lr_min = float(solver_config['lr_min'])
     
     scheduler_map = {
         'exponential': (ExponentialLR, {'gamma': 0.1}),
-        'plateau': (ReduceLROnPlateau, {'min_lr': lr_min}),
-        'cosine': (CosineAnnealingWarmRestarts, {'T_0': 10, 'T_mult': 2, 'eta_min': lr_min})
+        'cyclic': (OneCycleLR, {'max_lr': lr_base, 'epochs': 10, 'steps_per_epoch': 10}),
+        'cosine': (CosineAnnealingWarmRestarts, {'T_0': 10, 'eta_min': lr_min})
     }
 
     try:

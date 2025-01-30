@@ -53,6 +53,6 @@ def init_distributed_process() -> None:
     torch.distributed.barrier()
 
 
-def all_reduce_mean(tensor: torch.tensor) -> None:
+def all_reduce_mean(tensor: torch.Tensor) -> None:
     if is_distributed():
         torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.AVG)

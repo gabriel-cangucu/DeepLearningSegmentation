@@ -1,8 +1,9 @@
 import torch
+from typing import Optional
 
 
 def write_summaries(writer: torch.utils.tensorboard.SummaryWriter, metrics: dict[str, float],
-                    step: int, mode: str='train', optimizer: torch.optim=None) -> None:
+                    step: int, mode: str='train', learning_rate: Optional[float]=None) -> None:
     for metric in metrics.keys():
         writer.add_scalars(
             metric,
@@ -10,9 +11,9 @@ def write_summaries(writer: torch.utils.tensorboard.SummaryWriter, metrics: dict
             global_step=step
         )
     
-    if optimizer is not None:
+    if learning_rate is not None:
         writer.add_scalar(
             'learning_rate',
-            scalar_value=optimizer.param_groups[0]['lr'],
+            scalar_value=learning_rate,
             global_step=step
         )

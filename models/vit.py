@@ -20,7 +20,7 @@ class PatchEmbedding(torch.nn.Module):
         self.positions = torch.nn.Parameter(torch.randn((img_res // patch_size)**2 + 1, embed_size))
     
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         assert len(x.shape) == 4
 
         b, _, _, _ = x.shape
@@ -54,7 +54,7 @@ class MultiHeadAttention(torch.nn.Module):
         self.att_drop = torch.nn.Dropout(dropout_prob)
     
 
-    def forward(self, x: torch.tensor) -> torch.tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Splitting keys, queries and values in num_heads
         qkv = rearrange(self.qkv(x), 'b n (h d qkv) -> (qkv) b h n d', h=self.num_heads, qkv=3)
         queries, keys, values = qkv[0], qkv[1], qkv[2]
@@ -84,7 +84,7 @@ class ResidualAdd(torch.nn.Module):
         self.fn = fn
 
 
-    def forward(self, x: torch.tensor, **kwargs: dict[str, Any]) -> torch.tensor:
+    def forward(self, x: torch.Tensor, **kwargs: dict[str, Any]) -> torch.Tensor:
         res = x
         x = self.fn(x, **kwargs)
         x += res

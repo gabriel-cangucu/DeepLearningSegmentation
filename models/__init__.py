@@ -2,7 +2,7 @@ import torch
 import sys
 from typing import Any
 
-from utils.distributed_utils import get_current_device
+import utils.distributed_utils as dist
 from models.unet import Unet
 from models.vit import ViT
 from models.tsvit import TSViT
@@ -28,12 +28,14 @@ def get_model(config: dict[str, Any]) -> torch.nn.Module:
     except KeyError:
         sys.exit(f'{model_config["architecture"]} is not a valid architecture.')
     
-    device = get_current_device()
+    device = dist.get_current_device()
 
-    model = model_class(model_config)
+    model = model_class(model_config).to(device)
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model = torch.nn.parallel.DistributedDataParallel(
-        model.to(device), device_ids=[device]
-    )
+    
+    if dist.is_distributed():
+        model = torch.nn.parallel.DistributedDataParallel(
+            model, device_ids=[device]
+        )
 
     return model

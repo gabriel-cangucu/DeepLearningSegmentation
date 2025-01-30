@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 from sklearn.metrics import confusion_matrix
+from typing import Optional
 
 from utils.distributed_utils import all_reduce_mean, get_current_device
 
@@ -8,17 +9,16 @@ np.seterr(divide='ignore', invalid='ignore')
 
 
 class RunningMetrics(object):
-
-    def __init__(self, num_classes: int, ignore_index: int) -> None:
+    '''
+    Computes and stores score metrics at every iteration.
+    '''
+    def __init__(self, num_classes: int, ignore_index: Optional[int]=None) -> None:
         self.num_classes = max(2, num_classes)
         self.ignore_index = ignore_index
 
         self.conf_matrix = np.zeros((self.num_classes, self.num_classes))
 
-
-    def update(self, logits: torch.tensor, labels: torch.tensor) -> None:
-        _, preds = torch.max(logits, dim=1)
-
+    def update(self, preds: torch.Tensor, labels: torch.Tensor) -> None:
         preds = preds.reshape(-1).detach().cpu().numpy()
         labels = labels.reshape(-1).detach().cpu().numpy()
 
@@ -30,11 +30,10 @@ class RunningMetrics(object):
 
             preds = preds[mask]
             labels = labels[mask]
-
+        
         self.conf_matrix += confusion_matrix(
             y_pred=preds, y_true=labels, labels=[i for i in range(self.num_classes)]
         )
-
 
     def get_scores(self) -> dict[str, float]:
         metrics = [
@@ -79,7 +78,6 @@ class RunningMetrics(object):
         all_reduce_mean(metrics_tensor)
 
         return {metric: metrics_tensor[i].item() for i, metric in enumerate(metrics)}
-
 
     def reset(self) -> None:
         self.conf_matrix = np.zeros((self.num_classes, self.num_classes))

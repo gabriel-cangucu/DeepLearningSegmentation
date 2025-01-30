@@ -4,7 +4,7 @@ import segmentation_models_pytorch as smp
 from typing import Any
 
 
-def get_loss(config: dict[str, Any], device: torch.device, reduction: str='mean') -> torch.nn:
+def get_loss(config: dict[str, Any], device: torch.device) -> torch.nn:
     model_config = config['MODEL']
     loss_config = config['SOLVER']
     
@@ -38,5 +38,5 @@ def get_loss(config: dict[str, Any], device: torch.device, reduction: str='mean'
         loss_fn, args = loss_map[loss_config['loss_function']]
     except KeyError:
         sys.exit(f'{loss_config["loss_function"]} is not a valid loss function.')
-
+    
     return loss_fn(**args).to(device)

@@ -19,7 +19,7 @@ def get_day_of_year(date: str) -> int:
     return dt.timetuple().tm_yday
 
 
-def unfold_reshape(img: torch.tensor, size: int):
+def unfold_reshape(img: torch.Tensor, size: int):
     if len(img.shape) == 4:
         T, C, H, W = img.shape
         img = img.unfold(2, size=size, step=size).unfold(3, size=size, step=size)
@@ -62,8 +62,8 @@ if __name__ == '__main__':
         img = img[idx]
         doy = doy[idx]
 
-        unfolded_images = unfold_reshape(torch.tensor(img), args.size).numpy()
-        unfolded_labels = unfold_reshape(torch.tensor(lab.astype(np.int64)), args.size).numpy()
+        unfolded_images = unfold_reshape(torch.Tensor(img), args.size).numpy()
+        unfolded_labels = unfold_reshape(torch.Tensor(lab.astype(np.int64)), args.size).numpy()
 
         for j in range(unfolded_images.shape[0]):
             sample = {'img': unfolded_images[j], 'labels': unfolded_labels[j], 'doy': doy}

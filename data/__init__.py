@@ -58,5 +58,26 @@ def get_dataloaders(config: dict[str, Any]) -> tuple[dict[str, torch.utils.data.
             transform=transform_fn(model_config, is_training=False),
             shuffle=False
         )
+    
+    # Test data
+    if 'test' in config['DATASETS'].keys():
+        test_config = config['DATASETS']['test']
+        assert type(test_config['dataset_name']) == str
+
+        try:
+            loader_fn, transform_fn = dataset_map[test_config['dataset_name']]
+        except KeyError:
+            sys.exit(f'{test_config["dataset_name"]} is not a valid dataset.')
+        
+        assert type(test_config['root_dir']) == type(test_config['csv_path']) == str
+
+        dataloader['test'], _ = loader_fn(
+            root_dir=test_config['root_dir'],
+            csv_path=test_config['csv_path'],
+            batch_size=int(test_config['batch_size']),
+            num_workers=int(test_config['num_workers']),
+            transform=transform_fn(model_config, is_training=False),
+            shuffle=False
+        )
 
     return dataloader, sampler

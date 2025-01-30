@@ -43,7 +43,7 @@ class PastisDataset(torch.utils.data.Dataset):
         return len(self.data_files)
     
 
-    def __getitem__(self, idx: list[str]) -> dict[str, torch.tensor]:
+    def __getitem__(self, idx: list[str]) -> dict[str, torch.Tensor]:
         img_path = os.path.join(self.root_dir, self.data_files.iloc[idx])
 
         try:
