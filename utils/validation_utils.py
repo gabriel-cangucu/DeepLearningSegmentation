@@ -13,7 +13,6 @@ class ValidationMonitor:
     def improved_model(self, mean_iou: float) -> bool:
         if mean_iou > self.best_mean_iou:
             self.best_mean_iou = mean_iou
-
             return True
 
         return False

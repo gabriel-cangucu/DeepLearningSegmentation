@@ -45,7 +45,7 @@ def store_batch_predictions(preds: torch.Tensor, save_path: str, indexes: list[i
     '''
     Stores network predictions as compressed numpy arrays.
     '''
-    save_path = os.path.join(save_path, 'preds')
+    save_path = os.path.join(save_path, 'predictions')
     os.makedirs(save_path, exist_ok=True)
 
     preds = preds.detach().cpu().numpy()

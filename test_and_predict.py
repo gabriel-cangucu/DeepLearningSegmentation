@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+import json
 from torch.utils.tensorboard import SummaryWriter
 from argparse import ArgumentParser
 from typing import Any
@@ -11,7 +12,6 @@ from models import get_model
 from metrics.loss_functions import get_loss
 from metrics.numpy_metrics import RunningMetrics
 from utils.config_files_utils import read_yaml
-from utils.summaries import write_summaries
 from utils.torch_utils import *
 
 
@@ -37,7 +37,7 @@ def test_and_predict(net: torch.nn.Module, dataloaders: torch.utils.data.DataLoa
 
             inputs = sample['inputs'].to(device)
             targets = sample['labels'].to(device)
-
+            
             outputs = net(inputs)
             loss_tensor = loss_fn(outputs, targets)
 
@@ -75,16 +75,19 @@ def test_and_predict(net: torch.nn.Module, dataloaders: torch.utils.data.DataLoa
     os.makedirs(save_path, exist_ok=True)
 
     device = dist.get_current_device()
-    loss_fn = get_loss(config, device, reduction='mean')
+    loss_fn = get_loss(config, device)
 
     writer = SummaryWriter(save_path)
 
     test_metrics = test(net, test_loader=dataloaders['test'], config=config,
                         loss_fn=loss_fn, save_path=save_path, device=device)
     
-    # Printing metrics
+    # Printing and saving metrics
     for metric, value in test_metrics.items():
         print(f'{metric}: {value}')
+    
+    with open(os.path.join(save_path, 'test_metrics.json'), 'w') as f:
+        json.dump(test_metrics, f, indent=4)
 
 
 if __name__ == '__main__':

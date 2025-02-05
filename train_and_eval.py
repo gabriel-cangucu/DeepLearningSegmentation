@@ -153,7 +153,6 @@ def train_and_evaluate(net: torch.nn.Module, dataloaders: torch.utils.data.DataL
 
             # Validation step
             if step % int(config['CHECKPOINT']['eval_steps']) == 0:
-
                 val_metrics = evaluate(net, val_loader=dataloaders['val'], config=config,
                                        loss_fn=loss_fn, device=device)
                 
